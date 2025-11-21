@@ -1,4 +1,5 @@
 
+
 # DQN con Aceleración GPU (CUDA) integrado a Webots
 
 ## 1. Descripción general
@@ -68,10 +69,116 @@ a (uint32)
 r (float32)
 s' (5 × float32)
 done (uint8)
+=======
+# Light Detection and Ranging (LiDAR)
+
+## 1. Introducción
+El presente laboratorio tiene como propósito la implementación de un sistema de escaneo y mapeo 2D utilizando un sensor **LiDAR (Light Detection and Ranging)** dentro del entorno de simulación **Webots**, en conjunto con **ROS 2 Humble** y el paquete **Cartographer**.  
+El objetivo principal es adquirir mediciones de distancia mediante un sensor láser, procesarlas para detectar obstáculos y generar un mapa de ocupación bidimensional del entorno simulado.
+
+El experimento permite comprender los fundamentos del mapeo simultáneo (**SLAM, Simultaneous Localization and Mapping**) y la interacción entre los tópicos de ROS relacionados con sensado, odometría y publicación de mapas.
+
+---
+
+## 2. Objetivos
+
+- Comprender el principio de funcionamiento de los sensores LiDAR.
+- Configurar un entorno de simulación en **Webots** integrado con **ROS 2**.
+- Utilizar el paquete **Cartographer** para la construcción de mapas 2D en tiempo real.
+- Evaluar la calidad del mapa generado mediante exploración teleoperada.
+- Guardar y documentar el mapa resultante en formato estándar de ROS (`.pgm` y `.yaml`).
+
+---
+
+## 3. Entorno de desarrollo
+
+**Hardware**
+- CPU con soporte para virtualización
+- Windows 10/11
+- WSL 2 habilitado
+- Conexión a Internet estable
+
+**Software**
+- Ubuntu 22.04 (WSL 2)
+- ROS 2 Humble Hawksbill
+- Webots R2025a o superior
+- Cartographer ROS 2
+- Nav2 Map Server
+- `colcon`, `rosdep`, `git`, `curl`, `pip`
+
+---
+
+## 4. Instalación del entorno
+
+### 4.1. Configuración inicial de Ubuntu 22.04 en WSL 2
+```bash
+wsl --install -d Ubuntu-22.04
+wsl --set-default Ubuntu-22.04
+````
+
+### 4.2. Preparación de paquetes base
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install software-properties-common curl git python3-pip -y
+sudo add-apt-repository universe
+sudo apt update
+pip install -U colcon-common-extensions rosdep
+export PATH="$HOME/.local/bin:$PATH"
+sudo rosdep init || true
+rosdep update
+```
+
+### 4.3. Instalación de ROS 2 Humble Desktop
+
+```bash
+sudo mkdir -p /usr/share/keyrings
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+https://packages.ros.org/ubuntu $(lsb_release -cs) main" | \
+sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+sudo apt update
+sudo apt install -y ros-humble-desktop
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+```
+
+Verificación:
+
+```bash
+ros2 run demo_nodes_cpp talker
+```
+
+### 4.4. Instalación de Webots y bridge ROS 2
+
+Webots se instala desde Windows:
+[https://cyberbotics.com](https://cyberbotics.com/#download)
+
+Luego, en Ubuntu:
+
+```bash
+mkdir -p ~/webots_ws/src
+cd ~/webots_ws/src
+git clone https://github.com/cyberbotics/webots_ros2.git
+cd ~/webots_ws
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+colcon build
+source install/setup.bash
+```
+
+### 4.5. Instalación de Cartographer y herramientas de mapeo
+
+```bash
+sudo apt install ros-humble-cartographer ros-humble-cartographer-ros \
+                 ros-humble-slam-toolbox ros-humble-nav2-map-server -y
+>>>>>>> 922d7c3 (Update README with LiDAR mapping system details)
 ```
 
 ---
 
+<<<<<<< HEAD
 ## 4. Representación del estado
 
 El estado del entorno se define como un vector continuo de dimensión 5:
@@ -392,3 +499,106 @@ El flujo completo del sistema es el siguiente:
 ## 12. Conclusión
 
 El proyecto presenta una integración eficiente entre robótica móvil, aprendizaje por refuerzo profundo y aceleración por GPU mediante CUDA. La arquitectura desacoplada permite entrenar modelos complejos de forma estable y escalable, manteniendo el control en tiempo real del simulador Webots. Esta solución resulta adecuada para contextos académicos y de investigación experimental en sistemas autónomos.
+=======
+## 5. Procedimiento experimental
+
+### 5.1. Ejecución de simulación con LiDAR
+
+En una terminal:
+
+```bash
+ros2 launch webots_ros2_husarion rosbot2r_webots.launch.py
+```
+
+Esto abre Webots con el modelo **ROSbot 2R**, el cual incluye un sensor LiDAR y odometría.
+
+### 5.2. Lanzamiento del mapeo 2D (Cartographer)
+
+En una segunda terminal:
+
+```bash
+cd ~/webots_ws
+source install/setup.bash
+ros2 launch cartographer_ros cartographer.launch.py use_sim_time:=true
+```
+
+### 5.3. Control manual del robot
+
+En una tercera terminal:
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+Mover el robot a lo largo del entorno hasta cubrir todas las paredes y obstáculos visibles.
+Cartographer construirá el mapa en tiempo real a partir del tópico `/scan`.
+
+### 5.4. Almacenamiento del mapa
+
+Cuando el área esté completamente explorada:
+
+```bash
+ros2 run nav2_map_server map_saver_cli -f mapa_webots
+```
+
+Archivos generados:
+
+```
+mapa_webots.pgm
+mapa_webots.yaml
+```
+
+Estos describen la **ocupación** (0–100 %) de cada celda del entorno en coordenadas cartesianas 2D.
+
+---
+
+## 6. Resultados 
+
+* Publicación continua del tópico `/map` (`nav_msgs/OccupancyGrid`) en ROS 2.
+* Construcción dinámica de un mapa con resolución definida por el parámetro `resolution` de Cartographer.
+* Generación correcta de los archivos `mapa_webots.pgm` y `mapa_webots.yaml`.
+* Visualización del mapa en RViz 2 mediante:
+
+  ```bash
+  rviz2
+  ```
+
+  y agregando las visualizaciones:
+
+  * `Map`  → `/map`
+  * `LaserScan` → `/scan`
+  * `TF` → transformaciones del robot
+
+---
+
+## 7. Análisis técnico
+
+El sensor LiDAR empleado en Webots mide distancias mediante la emisión de pulsos láser y el cálculo del tiempo de vuelo (ToF).
+Los datos se publican como un `sensor_msgs/LaserScan` con resolución angular fija.
+El nodo de **Cartographer** realiza:
+
+1. **Scan matching:** correlación entre mediciones sucesivas para estimar desplazamiento relativo.
+2. **Pose graph optimization:** minimización global del error acumulado.
+3. **Occupancy grid mapping:** actualización probabilística de celdas mediante log-odds.
+
+La exploración debe cubrir completamente las fronteras del entorno para obtener un mapa cerrado y coherente.
+En caso de ruido o superposición de escaneos, el ajuste de parámetros como `scan_matcher.translation_weight` y `resolution` permite mejorar la consistencia del mapa.
+
+---
+
+## 8. Conclusiones
+
+* Se logró la integración de **Webots + ROS 2** para la adquisición de datos LiDAR y la generación de mapas de ocupación 2D.
+* El paquete **Cartographer** demostró un rendimiento estable en WSL 2, permitiendo la creación de mapas precisos en tiempo real.
+* El uso de herramientas estándar de ROS 2 facilita la exportación, análisis y reutilización de mapas para navegación autónoma.
+* La metodología puede extenderse a SLAM 3D mediante la incorporación de sensores multieje o cámaras de profundidad.
+
+---
+
+## 9. Referencias
+
+* [Webots ROS 2 Integration](https://github.com/cyberbotics/webots_ros2)
+* [ROS 2 Documentation – Humble Hawksbill](https://docs.ros.org/en/humble/)
+* [Cartographer ROS 2](https://github.com/cartographer-project/cartographer_ros)
+* [Husarion ROSbot 2R Simulation](https://github.com/husarion/webots_ros2_husarion)
+* [Nav2 Map Server](https://navigation.ros.org/)
